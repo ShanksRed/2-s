@@ -1,0 +1,140 @@
+#include "stdafx.h"
+#include <iostream>
+#include <math.h>
+#include <iomanip>
+#include <fstream> 
+#include <stdio.h>
+#include <cstdlib>
+#include <vector>
+
+using namespace std;
+
+double Pi = 3.141592653589793238462643;
+float R0 = 0.5;
+
+
+
+
+void NumberOfCells(int r, vector<double>& L) {
+	for (int i = 0; i < r; i++) L[i] = 4.0 / 3.0 * Pi*(3 * pow((i + R0), 2) - 3 * (i + R0) + 1);
+
+}
+
+void ContactSurf(int r, vector<double>& A) {
+	for (int i = 0; i < r; i++) A[i] = 4 * Pi*pow((i + R0), 2);
+}
+
+void probability(vector<double>& LambdB, vector<double>& LambdF, vector<double>& LambdS, int r, vector<double>& L, vector<double>& A) {
+	double tempLambdB, tempLambdF, tempLambdS;
+	tempLambdF = 1.0 / 6;
+	tempLambdB = 1.0 / 6;
+	tempLambdS = 1 - tempLambdB - tempLambdF;//вероятности перехода в плойской геометрии
+	for (int i = 1; i < r; i++) {
+		LambdF[i] = tempLambdF*(A[i] / L[i]);
+		LambdB[i] = tempLambdB*(A[i - 1] / L[i]);
+		LambdS[i] = 1 - LambdF[i] - LambdB[i];
+	}
+}
+
+
+
+void OutPut(int r, vector<double>& fiNa, vector<double>& fiCl, vector<double>& fiW, vector<double>& L, vector<double>& potencial) {
+	FILE *hfile;
+	double q;
+	hfile = fopen("out.txt", "w");
+	for (int i = 0; i < r; i++) {
+		q = (fiNa[i] - fiCl[i])*L[i];
+		fprintf(hfile, " %4d %8.3e %8.3e %8.3e  %8.3e  %8.3e \n", i, fiNa[i], fiCl[i], fiW[i], q, potencial[i]);
+
+	}
+	fclose(hfile);
+}
+
+
+
+
+
+
+
+
+
+
+void NumericalSolution() {
+	int M, max_step, choise, Ns, g, db, r , s, k ,Omega;
+	double density, volumeFraction, speed, tolerance, err, temp1 = 0, temp2 = 0,N;
+	bool choiseGeometry;
+	ifstream infile("data1.txt");
+	//M-число слоев destiny -точность volumefraction-обьемная доля ионов speed - скорость tolerance-точность surfaceRadius -радиус кривизны поверхности  choise-выбор геометрии
+	infile >> Ns >> g >> db >> M >> speed >> tolerance >> max_step >> choise;//нач. парамертры
+	infile.close();
+	if (db > 2)
+		N = Ns*pow((db - 1), g - 1) / (db - 2) + 1;
+	else
+		N = Ns*g + 1;
+	r = M + 2; s = N; k = g;
+	vector<double>LambdS(r);
+	vector<double>LambdF(r);
+	vector<double>LambdB(r);
+	vector<double>A(r);
+	vector<double>L(r);
+	vector<double>Up(r);
+	vector<double>Uw(r);
+	vector<double>Gp(r);
+	vector<double>Gw(r);
+	vector<vector<vector<double>>>Gb(r, vector<vector<double>>(Ns+2,vector<double>(g+1)));
+	vector<vector<vector<double>>>Gf(r, vector<vector<double>>(Ns + 2, vector<double>(g + 1)));
+	NumberOfCells(r, L);//считаем слои
+	ContactSurf(r, A);
+	probability(LambdB, LambdF, LambdS, r, L, A);
+	//инициализируем начальными значениями
+	for (int j = 0; j < r; j++)
+		Gp[j] = Gw[j] = Up[j] = Uw[j] = 0;
+	//основной цикл
+	for (int i = 0; i < max_step; i++) {
+
+		for (int j = 1; j < r-1; j++) {
+			Gp[j] =exp(-Up[j]) ;
+			Gw[j] = exp(-Uw[j]);
+		}
+		for (int j = 1; j < r - 1; j++) {
+			Gb[j][Ns + 1][g] = Gp[j];
+		}
+		Gf[1][1][1] = 1;
+		//матрицы пропогаторов
+		  //расписываем для Gb
+		for (int k = g; k > 1; k++) {
+			for (int rt = 1; rt < r;rt++) {// точка ветвления для Gb
+				Gb[rt][Ns + 1][g + 1 - k] = pow(Gb[rt][1][g + 1 - k], db - 1) / pow(Gp[rt], db - 2);
+			}
+			for (int st = Ns + 1; st > 0; st--) {
+				for (int rt = 1; rt < r; rt++) {
+					Gb[rt][Ns + 1 - st + 1][g + 1 - k] = Gp[rt] * (LambdB[rt] * Gb[rt - 1][Ns + 1 - s + 2][g + 1 - k] + LambdS[rt] * Gb[rt][Ns + 1 - s + 2][g + 1 - k] + LambdF[rt] * Gb[rt + 1][Ns + 1 - s + 2][g + 1 - k]);
+				}
+			}
+		}
+		  //расписываем для Gf
+		for (int k = g; k > 1; k++) {
+			for (int rt = 1; rt < r; rt++) {// точка ветвления для Gb
+				Gf[rt][1][k] = Gf[rt][Ns+1][k-1]*pow(Gb[rt][1][k],db-2) / pow(Gp[rt], db - 2);
+			}
+			for (int st = Ns + 1; st > 0; st--) {
+				for (int rt = 1; rt < r; rt++) {
+					Gb[rt][st][k] = Gp[rt] * (LambdB[rt] * Gb[rt - 1][s-1][k] + LambdS[rt] * Gb[rt][s-1][k] + LambdF[rt] * Gb[rt + 1][s-1][ k]);
+				}
+			}
+		}
+		
+	}
+
+
+
+}
+
+
+
+int main()
+{
+	NumericalSolution();
+	return 0;
+}
+
