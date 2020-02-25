@@ -61,7 +61,7 @@ void OutPut(int r, vector<double>& fiNa, vector<double>& fiCl, vector<double>& f
 
 void NumericalSolution() {
 	int M, max_step, choise, Ns, g, db, r, s, k, Omega;
-	double density, volumeFraction, speed, tolerance, err, temp1 , temp2 , N;
+	double density, volumeFraction, speed, tolerance, err, temp1, temp2, Nб,err,Rg,Fel,Fint,N,q;
 	bool choiseGeometry;
 	ifstream infile("data1.txt");
 	//M-число слоев destiny -точность volumefraction-обьемная доля ионов speed - скорость tolerance-точность surfaceRadius -радиус кривизны поверхности  choise-выбор геометрии
@@ -72,6 +72,7 @@ void NumericalSolution() {
 	else
 		N = Ns*g + 1;
 	r = M + 2; s = N; k = g;
+	Omega = N;
 	vector<double>LambdS(r);
 	vector<double>LambdF(r);
 	vector<double>LambdB(r);
@@ -79,9 +80,11 @@ void NumericalSolution() {
 	vector<double>L(r);
 	vector<double>Up(r);
 	vector<double>Uw(r);
+	vector<double>alpha(r);
 	vector<double>Gp(r);
 	vector<double>Gw(r);
-	vector<double>phi(r);
+	vector<double>phiP(r);
+	vector<double>phiW(r);
 	vector<double>phiDer(r);
 	vector<vector<vector<double>>>Gb(r, vector<vector<double>>(Ns + 2, vector<double>(g + 1)));
 	vector<vector<vector<double>>>Gf(r, vector<vector<double>>(Ns + 2, vector<double>(g + 1)));
@@ -92,7 +95,7 @@ void NumericalSolution() {
 	for (int i = 0; i < max_step; i++) {
 		//инициализируем начальными значениями
 		for (int j = 0; j < r; j++)
-			Gp[j] = Gw[j] = Up[j] = Uw[j] = phiDer[j] = 0;
+			Gp[j] = Gw[j] = Up[j] = Uw[j] = phiDer[j] =alpha[j]= 0;
 
 		for (int j = 1; j < r - 1; j++) {
 			Gp[j] = exp(-Up[j]);
@@ -130,19 +133,58 @@ void NumericalSolution() {
 		temp1 = temp2 = 0;
 		for (int rt = 1; rt < r - 1; rt++) {
 			for (int st = 1; st < Ns + 1; st++) {
-				temp1+=Gf[rt][st][1] * Gb[rt][st][1] / Gp[rt];
+				temp1 += Gf[rt][st][1] * Gb[rt][st][1] / Gp[rt];
 			}
-			for (int kt = 2; kt < g+1; kt++) { // g or g+1 ?
+			for (int kt = 2; kt < g + 1; kt++) { // g or g+1 ?
 				for (int st = 1; st < Ns + 1; st++) {
-					temp2+= pow((db-1),k-1)*Gf[rt][st][kt] * Gb[rt][st][kt] / Gp[rt];
+					temp2 += pow((db - 1), k - 1)*Gf[rt][st][kt] * Gb[rt][st][kt] / Gp[rt];
 				}
 			}
 			phiDer[rt] += temp1 + temp2;
 		}
 		//ищем стат.сумму
-		temp1 = 0;
+		q = 0;
 		for (int rt = 1; rt < r - 1; rt++) {
-			temp1+=1/N*(phiDer[rt]*)
+			q += (phiDer[rt] * L[rt]);
+		}
+		for (int rt = 1; rt < r - 1; rt++) {
+			phiP[rt]= (phiDer[rt] * Omega)/q;
+		}
+		//расчитываем профиль плотности растворителя
+		for (int rt = 1; rt < r - 1; rt++) {
+			phiW[rt] = Gw[rt] ;
+		}
+		//Расчитываем поле Лагранжа
+		for (int rt = 1; rt < r - 1; rt++) {
+			alpha[rt] = alpha[rt - 1] + speed*(phiP[rt] + phiW[rt] - 1);
+		}
+
+
+		//потенциальные поля
+		for (int rt = 1; rt < r - 1; rt++) {
+			Uw[rt] = Up[rt] = alpha[rt];
+		}
+
+		//Условие остановки
+		err = 0;
+		for (int rt = 1; rt < r - 1; rt++) {
+			err += pow(phiP[rt] + phiW[rt] - 1, 2);
+		}
+		temp1 = temp2 = 0;
+		if (sqrt(err) < tolerance) {
+			//Радиус энерции
+			for (int tempr = 0; tempr < r-1; tempr++) {
+				temp1 += phiP[tempr] * L[tempr]*pow(tempr, 2);
+				temp2 += phiP[tempr] *L[tempr];
+			}
+			Rg = sqrt(temp1 / temp2);
+			//Свободная энергия
+			Fel = -Omega / N*log(Omega / q);
+			for (int tempr = 0; tempr < r - 1; tempr++) {
+				Fint += (Up[tempr] * phiP[tempr] + Uw[tempr] * phiW[tempr])* L[tempr];
+			}
+			cout << "radius iner:" << Rg << "  ";
+			cout << "free energy:" << Fel - Fint << endl;
 		}
 	}
 
