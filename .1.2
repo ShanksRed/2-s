@@ -38,13 +38,12 @@ void probability(vector<double>& LambdB, vector<double>& LambdF, vector<double>&
 
 
 
-void OutPut(int r, vector<double>& fiNa, vector<double>& fiCl, vector<double>& fiW, vector<double>& L, vector<double>& potencial) {
+void OutPut(int r, vector<double>& phiP, vector<double>& phiW, vector<double>& alpha) {
 	FILE *hfile;
 	double q;
 	hfile = fopen("out.txt", "w");
 	for (int i = 0; i < r; i++) {
-		q = (fiNa[i] - fiCl[i])*L[i];
-		fprintf(hfile, " %4d %8.3e %8.3e %8.3e  %8.3e  %8.3e \n", i, fiNa[i], fiCl[i], fiW[i], q, potencial[i]);
+		fprintf(hfile, " %4d %8.3e %8.3e %8.3e  %8.3e  %8.3e \n", i, phiP[i], phiW[i], alpha[i]);
 
 	}
 	fclose(hfile);
@@ -61,10 +60,9 @@ void OutPut(int r, vector<double>& fiNa, vector<double>& fiCl, vector<double>& f
 
 void NumericalSolution() {
 	int M, max_step, choise, Ns, g, db, r, s, k, Omega;
-	double density, volumeFraction, speed, tolerance, err, temp1, temp2, Nб,err,Rg,Fel,Fint,N,q;
+	double density, volumeFraction, speed, tolerance, temp1, temp2, Nб, err, Rg, Fel, Fint, N, q;
 	bool choiseGeometry;
 	ifstream infile("data1.txt");
-	//M-число слоев destiny -точность volumefraction-обьемная доля ионов speed - скорость tolerance-точность surfaceRadius -радиус кривизны поверхности  choise-выбор геометрии
 	infile >> Ns >> g >> db >> M >> speed >> tolerance >> max_step >> choise;//нач. парамертры
 	infile.close();
 	if (db > 2)
@@ -86,6 +84,7 @@ void NumericalSolution() {
 	vector<double>phiP(r);
 	vector<double>phiW(r);
 	vector<double>phiDer(r);
+	vector<double>grad(r);
 	vector<vector<vector<double>>>Gb(r, vector<vector<double>>(Ns + 2, vector<double>(g + 1)));
 	vector<vector<vector<double>>>Gf(r, vector<vector<double>>(Ns + 2, vector<double>(g + 1)));
 	NumberOfCells(r, L);//считаем слои
@@ -95,7 +94,7 @@ void NumericalSolution() {
 	for (int i = 0; i < max_step; i++) {
 		//инициализируем начальными значениями
 		for (int j = 0; j < r; j++)
-			Gp[j] = Gw[j] = Up[j] = Uw[j] = phiDer[j] =alpha[j]= 0;
+			Gp[j] = Gw[j] = Up[j] = Uw[j] = phiDer[j] = alpha[j] = 0;
 
 		for (int j = 1; j < r - 1; j++) {
 			Gp[j] = exp(-Up[j]);
@@ -119,9 +118,9 @@ void NumericalSolution() {
 			}
 		}
 		//расписываем для Gf
-		for (int k = g; k > 1; k--) {
+		for (int kt = g; kt > 1; kt--) {
 			for (int rt = 1; rt < r - 1; rt++) {// точка ветвления для Gb
-				Gf[rt][1][k] = Gf[rt][Ns + 1][k - 1] * pow(Gb[rt][1][k], db - 2) / pow(Gp[rt], db - 2);
+				Gf[rt][1][kt] = Gf[rt][Ns + 1][kt - 1] * pow(Gb[rt][1][kt], db - 2) / pow(Gp[rt], db - 2);
 			}
 			for (int st = Ns + 1; st > 1; st--) {
 				for (int rt = 1; rt < r - 1; rt++) {
@@ -148,16 +147,33 @@ void NumericalSolution() {
 			q += (phiDer[rt] * L[rt]);
 		}
 		for (int rt = 1; rt < r - 1; rt++) {
-			phiP[rt]= (phiDer[rt] * Omega)/q;
+			phiP[rt] = (phiDer[rt] * Omega) / q;
 		}
 		//расчитываем профиль плотности растворителя
 		for (int rt = 1; rt < r - 1; rt++) {
-			phiW[rt] = Gw[rt] ;
+			phiW[rt] = Gw[rt];
 		}
 		//Расчитываем поле Лагранжа
-		for (int rt = 1; rt < r - 1; rt++) {
-			alpha[rt] = alpha[rt - 1] + speed*(phiP[rt] + phiW[rt] - 1);
+		if (choise == 1) {
+			for (int rt = 1; rt < r - 1; rt++) {
+				alpha[rt] = alpha[rt] + speed*(phiP[rt] + phiW[rt] - 1);
+			}
 		}
+		else if (choise == 2) {
+			for (int rt = 1; rt < r - 1; rt++) {
+				grad[rt] = -1 + 1 / (phiP[rt] + phiW[rt]);
+				alpha[rt] = alpha[rt] - speed*grad[rt];
+			}
+		}
+		else {
+			//
+		}
+
+
+
+
+
+
 
 
 		//потенциальные поля
@@ -173,9 +189,9 @@ void NumericalSolution() {
 		temp1 = temp2 = 0;
 		if (sqrt(err) < tolerance) {
 			//Радиус энерции
-			for (int tempr = 0; tempr < r-1; tempr++) {
-				temp1 += phiP[tempr] * L[tempr]*pow(tempr, 2);
-				temp2 += phiP[tempr] *L[tempr];
+			for (int tempr = 0; tempr < r - 1; tempr++) {
+				temp1 += phiP[tempr] * L[tempr] * pow(tempr, 2);
+				temp2 += phiP[tempr] * L[tempr];
 			}
 			Rg = sqrt(temp1 / temp2);
 			//Свободная энергия
@@ -185,6 +201,7 @@ void NumericalSolution() {
 			}
 			cout << "radius iner:" << Rg << "  ";
 			cout << "free energy:" << Fel - Fint << endl;
+			OutPut(r, phiP, phiW, alpha);
 		}
 	}
 
