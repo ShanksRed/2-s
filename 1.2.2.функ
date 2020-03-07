@@ -1,0 +1,280 @@
+#include "stdafx.h"
+#include <iostream>
+#include <math.h>
+#include <iomanip>
+#include <fstream> 
+#include <stdio.h>
+#include <cstdlib>
+#include <vector>
+
+using namespace std;
+
+double Pi = 3.141592653589793238462643;
+float R0 = 0.5;
+
+
+
+
+void NumberOfCells(int r, vector<double>& L) {
+	for (int i = 0; i < r; i++) L[i] = 4.0 / 3.0 * Pi*(3 * pow((i + R0), 2) - 3 * (i + R0) + 1);
+
+}
+
+void ContactSurf(int r, vector<double>& A) {
+	for (int i = 0; i < r; i++) A[i] = 4 * Pi*pow((i + R0), 2);
+}
+
+void probability(vector<double>& LambdB, vector<double>& LambdF, vector<double>& LambdS, int r, vector<double>& L, vector<double>& A) {
+	double tempLambdB, tempLambdF, tempLambdS;
+	tempLambdF = 1.0 / 6;
+	tempLambdB = 1.0 / 6;
+	tempLambdS = 1 - tempLambdB - tempLambdF;//вероятности перехода в плойской геометрии
+	for (int i = 1; i < r; i++) {
+		LambdF[i] = tempLambdF*(A[i] / L[i]);
+		LambdB[i] = tempLambdB*(A[i - 1] / L[i]);
+		LambdS[i] = 1 - LambdF[i] - LambdB[i];
+	}
+}
+
+
+
+void OutPut(int r, vector<double>& phiP, vector<double>& phiW, vector<double>& alpha) {
+	FILE *hfile;
+	double q;
+	hfile = fopen("out.txt", "w");
+	for (int i = 0; i < r; i++) {
+		fprintf(hfile, " %4d %8.3e %8.3e %8.3e  \n", i, phiP[i], phiW[i], alpha[i]);
+
+	}
+	fclose(hfile);
+}
+
+void GofAlpha(int r,vector<double>&Gw, vector<double>&Gp, vector<vector<vector<double>>>&Gb, vector<vector<vector<double>>>&Gf, vector<double>& phiP, vector<double>& phiW, vector<double>& alpha,int Omega) {
+	for (int j = 1; j < r - 1; j++) {
+		Gp[j] = exp(-alpha[j]);
+		Gw[j] = exp(-alpha[j]);
+	}
+}
+
+void BoltzmannDistribution(int r, vector<double>&Gw, vector<double>&Gp, vector<double>&Up, vector<double>&Uw) {
+	for (int j = 1; j < r - 1; j++) {
+		Gp[j] = exp(-Up[j]);
+		Gw[j] = exp(-Uw[j]);
+	}
+}
+
+void initializeBackAndForward(int r,int Ns,int g,vector<vector<vector<double>>>&Gb, vector<vector<vector<double>>>&Gf, vector<double>&Gp) {
+	for (int j = 1; j < r - 1; j++) {
+		Gb[j][Ns + 1][g] = Gp[j];
+	}
+	Gf[1][1][1] = 1;
+}
+void PropogatorMatricesGb(int Ns, int r,int db,int g, vector<vector<vector<double>>>&Gb, vector<double>&Gp, vector<double>&LambdS, vector<double>&LambdF, vector<double>&LambdB) {
+	for (int kt = 1; kt<g + 1; kt++) {
+		//от чего s
+		for (int st = Ns + 1; st > 1; st--) {
+			for (int rt = 1; rt < r - 1; rt++) {
+				Gb[rt][st - 1][g + 1 - kt] = Gp[rt] * (LambdB[rt] * Gb[rt - 1][st][g + 1 - kt] + LambdS[rt] * Gb[rt][st][g + 1 - kt] + LambdF[rt] * Gb[rt + 1][st][g + 1 - kt]);
+			}
+		}
+		// точка ветвления для Gb
+		for (int rt = 1; rt < r - 1; rt++) {
+			Gb[rt][Ns + 1][g + 1 - kt - 1] = pow(Gb[rt][1][g + 1 - kt], db - 1) / pow(Gp[rt], db - 2);
+		}
+	}
+}
+void  PropogatorMatricesGf(int Ns,int r,int db,int g, vector<vector<vector<double>>>&Gb, vector<vector<vector<double>>>&Gf, vector<double>&Gp, vector<double>&LambdS, vector<double>&LambdF, vector<double>&LambdB) {
+	for (int kt = 1; kt <g + 1; kt++) {
+		for (int st = 2; st <= Ns + 1; st++) {
+			for (int rt = 1; rt < r - 1; rt++) {
+				Gf[rt][st][kt] = Gp[rt] * (LambdB[rt] * Gf[rt - 1][st - 1][kt] + LambdS[rt] * Gf[rt][st - 1][kt] + LambdF[rt] * Gf[rt + 1][st - 1][kt]);
+			}
+		}
+		for (int rt = 1; rt < r - 1; rt++) {// точка ветвления для Gb
+			Gf[rt][1][kt + 1] = Gf[rt][Ns + 1][kt] * pow(Gb[rt][1][kt + 1], db - 2) / pow(Gp[rt], db - 2);
+		}
+	}
+}
+void densityProfile(int r,int Ns,int db,int Omega,int g, vector<vector<vector<double>>>&Gb, vector<vector<vector<double>>>&Gf, vector<double>&Gp,vector<double>&phiP, vector<double>&L, vector<double>&phiW, vector<double>&Gw,  vector<double>&phiDer) {
+	double temp1, temp2,q;
+	for (int rt = 1; rt < r - 1; rt++) {
+		temp1 = temp2 = 0;
+		for (int st = 1; st < Ns + 1; st++) {
+			temp1 += Gf[rt][st][1] * Gb[rt][st][1] / Gp[rt];
+		}
+		for (int kt = 2; kt < g + 1; kt++) { // g or g+1 ?
+			for (int st = 1; st < Ns + 1; st++) {
+				temp2 += pow((db - 1), kt - 1)*Gf[rt][st][kt] * Gb[rt][st][kt] / Gp[rt];
+			}
+		}
+		phiDer[rt] += temp1 + temp2;
+	}
+	//ищем стат.сумму
+	q = 0;
+	for (int rt = 1; rt < r - 1; rt++) {
+		q += (phiDer[rt] * L[rt]);
+	}
+	for (int rt = 1; rt < r - 1; rt++) {
+		phiP[rt] = (phiDer[rt] * Omega) / q;
+	}
+	//расчитываем профиль плотности растворителя
+	for (int rt = 1; rt < r - 1; rt++) {
+		phiW[rt] = Gw[rt];
+	}
+}
+
+void LagrangeField1(int r,double speed, vector<double>&alpha, vector<double>&phiP, vector<double>&phiW) {
+	for (int rt = 1; rt < r - 1; rt++) {
+		alpha[rt] = alpha[rt] + speed*(phiP[rt] + phiW[rt] - 1);
+	}
+}
+void LagrangeField2(int r, double speed, vector<double>&alpha, vector<double>&phiP, vector<double>&phiW, vector<double>&grad) {
+	for (int rt = 1; rt < r - 1; rt++) {
+		grad[rt] = -1 + 1 / (phiP[rt] + phiW[rt]);
+		alpha[rt] = alpha[rt] - speed*grad[rt];
+	}
+}
+void LagrangeField3(int r, double speed, vector<double>&alpha, vector<double>&phiP, vector<double>&phiW, vector<double>&grad) {
+	for (int rt = 1; rt < r - 1; rt++)
+		grad[rt] = -1 + 1 / (phiP[rt] + phiW[rt]);
+	vector < vector <double> > A(r, vector <double>(r, 0));
+	vector<double>d(r);
+	vector<double>a(r);
+	//матрица А
+	for (int it = 0; it < r; it++) {
+		for (int jt = 0; jt < r; jt++) {
+			if (it == jt) A[it][jt] = 1;
+		}
+	}
+	//вектор направления
+	for (int it = 1; it < r - 1; it++) {
+		for (int jt = 1; jt < r - 1; jt++) {
+			d[it] = A[it][jt] * grad[it];
+		}
+	}
+	for (int it = 1; it < r - 1; it++) {
+		a[it] = alpha[it];
+		alpha[it] += d[it];
+		a[it] = alpha[it] - a[it];
+	}
+	//g от alpha
+	for (int j = 1; j < r - 1; j++) {
+		Gp[j] = exp(-Up[j]);
+		Gw[j] = exp(-Uw[j]);
+	}
+
+
+
+}
+
+
+
+
+
+
+void NumericalSolution() {
+	int M, max_step, choise, Ns, g, db, r, s, k, Omega, N;
+	double density, volumeFraction, speed, tolerance, temp1 = 0, temp2 = 0, Nб, err, Rg, Fel = 0, Fint = 0, q;
+	ifstream infile("data1.txt");
+	infile >> Ns >> g >> db >> M >> speed >> tolerance >> max_step >> choise;//нач. парамертры
+	infile.close();
+	if (db > 2)
+		N = Ns*pow((db - 1), g - 1) / (db - 2) + 1;
+	else
+		N = Ns*g + 1;
+	r = M + 2; s = N; k = g;
+	Omega = N;
+	vector<double>LambdS(r);
+	vector<double>LambdF(r);
+	vector<double>LambdB(r);
+	vector<double>A(r);
+	vector<double>L(r);
+	vector<double>Up(r);
+	vector<double>Uw(r);
+	vector<double>alpha(r);
+	vector<double>Gp(r);
+	vector<double>Gw(r);
+	vector<double>phiP(r);
+	vector<double>phiW(r);
+	vector<double>phiDer(r);
+	vector<double>grad(r);
+	vector<vector<vector<double>>>Gb(r, vector<vector<double>>(Ns + 2, vector<double>(g + 2)));
+	vector<vector<vector<double>>>Gf(r, vector<vector<double>>(Ns + 2, vector<double>(g + 2)));
+	NumberOfCells(r, L);//считаем слои
+	ContactSurf(r, A);
+	probability(LambdB, LambdF, LambdS, r, L, A);
+
+	//инициализируем начальными значениями
+	for (int j = 0; j < r; j++)
+		Gp[j] = Gw[j] = Up[j] = Uw[j] = phiDer[j] = alpha[j] = 0;
+	//основной цикл
+	for (int i = 0; i < max_step; i++) {
+		//распределение 
+		BoltzmannDistribution(r, Gw, Gp, Up, Uw);
+		//инициализаци
+		initializeBackAndForward(r, Ns, g, Gb, Gf, Gp);
+		//расписываем для Gb
+		PropogatorMatricesGb(Ns, r, db, g, Gb, Gp, LambdS, LambdF, LambdB);
+		//расписываем для Gf 
+		PropogatorMatricesGf(Ns, r, db,g, Gb, Gf, Gp, LambdS, LambdF, LambdB);
+		//профиль плотности
+		densityProfile(r, Ns, db, Omega, g, Gb, Gf, Gp, phiP, L, phiW, Gw, phiDer);
+		//Расчитываем поле Лагранжа
+		if (choise == 1) {
+			LagrangeField1(r, speed, alpha, phiP, phiW);
+		}
+		else if (choise == 2) {
+			LagrangeField2(r, speed, alpha, phiP, phiW,grad);
+		}
+
+		else {
+			
+		}
+
+
+		//потенциальные поля
+		for (int rt = 1; rt < r - 1; rt++) {
+			Uw[rt] = Up[rt] = alpha[rt];
+		}
+
+		//Условие остановки
+		err = 0;
+		for (int rt = 1; rt < r - 1; rt++) {
+			err += pow(phiP[rt] + phiW[rt] - 1, 2);
+		}
+		temp1 = temp2 = 0;
+		cout << err << " " << i << endl;
+		if (sqrt(err) < tolerance) {
+			//Радиус энерции
+			for (int tempr = 0; tempr < r - 1; tempr++) {
+				temp1 += phiP[tempr] * L[tempr] * pow(tempr, 2);
+				temp2 += phiP[tempr] * L[tempr];
+			}
+			Rg = sqrt(temp1 / temp2);
+			//Свободная энергия
+			q = 0;
+			for (int rt = 1; rt < r - 1; rt++) {
+				q += (phiDer[rt] * L[rt]);
+			}
+			Fel = -Omega / N*log(Omega / q);
+			for (int tempr = 0; tempr < r - 1; tempr++) {
+				Fint += (Up[tempr] * phiP[tempr] + Uw[tempr] * phiW[tempr])* L[tempr];
+			}
+			cout << "radius iner:" << Rg << "  ";
+			cout << "free energy:" << Fel - Fint << endl;
+			OutPut(r, phiP, phiW, alpha);
+			break;
+		}
+	}
+
+
+
+}
+
+
+
+int main()
+{
+	NumericalSolution();
+	return 0;
+}
