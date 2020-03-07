@@ -59,9 +59,8 @@ void OutPut(int r, vector<double>& phiP, vector<double>& phiW, vector<double>& a
 
 
 void NumericalSolution() {
-	int M, max_step, choise, Ns, g, db, r, s, k, Omega;
-	double density, volumeFraction, speed, tolerance, temp1, temp2, Nб, err, Rg, Fel, Fint, N, q;
-	bool choiseGeometry;
+	int M, max_step, choise, Ns, g, db, r, s, k, Omega,N;
+	double density, volumeFraction, speed, tolerance, temp1 = 0, temp2 = 0, Nб, err, Rg, Fel = 0, Fint = 0, q;
 	ifstream infile("data1.txt");
 	infile >> Ns >> g >> db >> M >> speed >> tolerance >> max_step >> choise;//нач. парамертры
 	infile.close();
@@ -85,16 +84,17 @@ void NumericalSolution() {
 	vector<double>phiW(r);
 	vector<double>phiDer(r);
 	vector<double>grad(r);
-	vector<vector<vector<double>>>Gb(r, vector<vector<double>>(Ns + 2, vector<double>(g + 1)));
-	vector<vector<vector<double>>>Gf(r, vector<vector<double>>(Ns + 2, vector<double>(g + 1)));
+	vector<vector<vector<double>>>Gb(r, vector<vector<double>>(Ns + 2, vector<double>(g + 2)));
+	vector<vector<vector<double>>>Gf(r, vector<vector<double>>(Ns + 2, vector<double>(g + 2)));
 	NumberOfCells(r, L);//считаем слои
 	ContactSurf(r, A);
 	probability(LambdB, LambdF, LambdS, r, L, A);
+
+	//инициализируем начальными значениями
+	for (int j = 0; j < r; j++)
+		Gp[j] = Gw[j] = Up[j] = Uw[j] = phiDer[j] = alpha[j] = 0;
 	//основной цикл
 	for (int i = 0; i < max_step; i++) {
-		//инициализируем начальными значениями
-		for (int j = 0; j < r; j++)
-			Gp[j] = Gw[j] = Up[j] = Uw[j] = phiDer[j] = alpha[j] = 0;
 
 		for (int j = 1; j < r - 1; j++) {
 			Gp[j] = exp(-Up[j]);
@@ -106,37 +106,39 @@ void NumericalSolution() {
 		Gf[1][1][1] = 1;
 		//матрицы пропогаторов
 		//расписываем для Gb
-		for (int k = g; k > 1; k--) {
-			for (int rt = 1; rt < r - 1; rt++) {// точка ветвления для Gb
-				Gb[rt][Ns + 1][g + 1 - k] = pow(Gb[rt][1][g + 1 - k], db - 1) / pow(Gp[rt], db - 2);
-			}
+		for (int kt = 1; kt<g + 1; kt++) {
 			//от чего s
 			for (int st = Ns + 1; st > 1; st--) {
 				for (int rt = 1; rt < r - 1; rt++) {
-					Gb[rt][Ns + 1 - st + 1][g + 1 - k] = Gp[rt] * (LambdB[rt] * Gb[rt - 1][Ns + 1 - st + 2][g + 1 - k] + LambdS[rt] * Gb[rt][Ns + 1 - st + 2][g + 1 - k] + LambdF[rt] * Gb[rt + 1][Ns + 1 - st + 2][g + 1 - k]);
+					Gb[rt][st - 1][g + 1 - kt] = Gp[rt] * (LambdB[rt] * Gb[rt - 1][st][g + 1 - kt] + LambdS[rt] * Gb[rt][st][g + 1 - kt] + LambdF[rt] * Gb[rt + 1][st][g + 1 - kt]);
 				}
+			}
+			// точка ветвления для Gb
+			for (int rt = 1; rt < r - 1; rt++) {
+				Gb[rt][Ns + 1][g + 1 - kt - 1] = pow(Gb[rt][1][g + 1 - kt], db - 1) / pow(Gp[rt], db - 2);
 			}
 		}
-		//расписываем для Gf
-		for (int kt = g; kt > 1; kt--) {
-			for (int rt = 1; rt < r - 1; rt++) {// точка ветвления для Gb
-				Gf[rt][1][kt] = Gf[rt][Ns + 1][kt - 1] * pow(Gb[rt][1][kt], db - 2) / pow(Gp[rt], db - 2);
-			}
-			for (int st = Ns + 1; st > 1; st--) {
+		//расписываем для Gf 2
+		for (int kt = 1; kt <g + 1; kt++) {
+			for (int st = 2; st <Ns + 1; st++) {
 				for (int rt = 1; rt < r - 1; rt++) {
-					Gf[rt][st][k] = Gp[rt] * (LambdB[rt] * Gf[rt - 1][st - 1][k] + LambdS[rt] * Gf[rt][st - 1][k] + LambdF[rt] * Gf[rt + 1][st - 1][k]);
+					Gf[rt][st][kt] = Gp[rt] * (LambdB[rt] * Gf[rt - 1][st - 1][kt] + LambdS[rt] * Gf[rt][st - 1][kt] + LambdF[rt] * Gf[rt + 1][st - 1][kt]);
 				}
+			}
+			for (int rt = 1; rt < r - 1; rt++) {// точка ветвления для Gb
+				Gf[rt][1][kt + 1] = Gf[rt][Ns + 1][kt] * pow(Gb[rt][1][kt + 1], db - 2) / pow(Gp[rt], db - 2);
 			}
 		}
 		//профиль плотности
-		temp1 = temp2 = 0;
+
 		for (int rt = 1; rt < r - 1; rt++) {
+			temp1 = temp2 = 0;
 			for (int st = 1; st < Ns + 1; st++) {
 				temp1 += Gf[rt][st][1] * Gb[rt][st][1] / Gp[rt];
 			}
 			for (int kt = 2; kt < g + 1; kt++) { // g or g+1 ?
 				for (int st = 1; st < Ns + 1; st++) {
-					temp2 += pow((db - 1), k - 1)*Gf[rt][st][kt] * Gb[rt][st][kt] / Gp[rt];
+					temp2 += pow((db - 1), kt - 1)*Gf[rt][st][kt] * Gb[rt][st][kt] / Gp[rt];
 				}
 			}
 			phiDer[rt] += temp1 + temp2;
@@ -170,12 +172,6 @@ void NumericalSolution() {
 		}
 
 
-
-
-
-
-
-
 		//потенциальные поля
 		for (int rt = 1; rt < r - 1; rt++) {
 			Uw[rt] = Up[rt] = alpha[rt];
@@ -187,6 +183,7 @@ void NumericalSolution() {
 			err += pow(phiP[rt] + phiW[rt] - 1, 2);
 		}
 		temp1 = temp2 = 0;
+		cout << err << " " << i << endl;
 		if (sqrt(err) < tolerance) {
 			//Радиус энерции
 			for (int tempr = 0; tempr < r - 1; tempr++) {
@@ -202,6 +199,7 @@ void NumericalSolution() {
 			cout << "radius iner:" << Rg << "  ";
 			cout << "free energy:" << Fel - Fint << endl;
 			OutPut(r, phiP, phiW, alpha);
+			break;
 		}
 	}
 
