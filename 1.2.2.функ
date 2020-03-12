@@ -49,7 +49,7 @@ void OutPut(int r, vector<double>& phiP, vector<double>& phiW, vector<double>& a
 	fclose(hfile);
 }
 
-void GofAlpha(int r,vector<double>&Gw, vector<double>&Gp, vector<vector<vector<double>>>&Gb, vector<vector<vector<double>>>&Gf, vector<double>& phiP, vector<double>& phiW, vector<double>& alpha,int Omega) {
+void GofAlpha(int r, vector<double>&Gw, vector<double>&Gp, vector<double>& alpha) {
 	for (int j = 1; j < r - 1; j++) {
 		Gp[j] = exp(-alpha[j]);
 		Gw[j] = exp(-alpha[j]);
@@ -63,13 +63,17 @@ void BoltzmannDistribution(int r, vector<double>&Gw, vector<double>&Gp, vector<d
 	}
 }
 
-void initializeBackAndForward(int r,int Ns,int g,vector<vector<vector<double>>>&Gb, vector<vector<vector<double>>>&Gf, vector<double>&Gp) {
+void initializeBackAndForward(int r, int Ns, int g, vector<vector<vector<double>>>&Gb,
+	vector<vector<vector<double>>>&Gf, vector<double>&Gp) {
+
 	for (int j = 1; j < r - 1; j++) {
 		Gb[j][Ns + 1][g] = Gp[j];
 	}
 	Gf[1][1][1] = 1;
 }
-void PropogatorMatricesGb(int Ns, int r,int db,int g, vector<vector<vector<double>>>&Gb, vector<double>&Gp, vector<double>&LambdS, vector<double>&LambdF, vector<double>&LambdB) {
+void PropogatorMatricesGb(int Ns, int r, int db, int g, vector<vector<vector<double>>>&Gb,
+	vector<double>&Gp, vector<double>&LambdS, vector<double>&LambdF, vector<double>&LambdB) {
+
 	for (int kt = 1; kt<g + 1; kt++) {
 		//от чего s
 		for (int st = Ns + 1; st > 1; st--) {
@@ -83,7 +87,9 @@ void PropogatorMatricesGb(int Ns, int r,int db,int g, vector<vector<vector<doubl
 		}
 	}
 }
-void  PropogatorMatricesGf(int Ns,int r,int db,int g, vector<vector<vector<double>>>&Gb, vector<vector<vector<double>>>&Gf, vector<double>&Gp, vector<double>&LambdS, vector<double>&LambdF, vector<double>&LambdB) {
+void  PropogatorMatricesGf(int Ns, int r, int db, int g, vector<vector<vector<double>>>&Gb,
+	vector<vector<vector<double>>>&Gf, vector<double>&Gp, vector<double>&LambdS, vector<double>&LambdF, vector<double>&LambdB) {
+
 	for (int kt = 1; kt <g + 1; kt++) {
 		for (int st = 2; st <= Ns + 1; st++) {
 			for (int rt = 1; rt < r - 1; rt++) {
@@ -95,8 +101,14 @@ void  PropogatorMatricesGf(int Ns,int r,int db,int g, vector<vector<vector<doubl
 		}
 	}
 }
-void densityProfile(int r,int Ns,int db,int Omega,int g, vector<vector<vector<double>>>&Gb, vector<vector<vector<double>>>&Gf, vector<double>&Gp,vector<double>&phiP, vector<double>&L, vector<double>&phiW, vector<double>&Gw,  vector<double>&phiDer) {
-	double temp1, temp2,q;
+void densityProfile(int r, int Ns, int db, int Omega, int g, vector<vector<vector<double>>>&Gb,
+	vector<vector<vector<double>>>&Gf, vector<double>&Gp, vector<double>&phiP, vector<double>&L,
+	vector<double>&phiW, vector<double>&Gw, vector<double>&phiDer) {
+
+	double temp1, temp2, q;
+	for (int rt = 0; rt < r - 1; rt++) {
+		phiDer[rt] = 0;
+	}
 	for (int rt = 1; rt < r - 1; rt++) {
 		temp1 = temp2 = 0;
 		for (int st = 1; st < Ns + 1; st++) {
@@ -123,7 +135,7 @@ void densityProfile(int r,int Ns,int db,int Omega,int g, vector<vector<vector<do
 	}
 }
 
-void LagrangeField1(int r,double speed, vector<double>&alpha, vector<double>&phiP, vector<double>&phiW) {
+void LagrangeField1(int r, double speed, vector<double>&alpha, vector<double>&phiP, vector<double>&phiW) {
 	for (int rt = 1; rt < r - 1; rt++) {
 		alpha[rt] = alpha[rt] + speed*(phiP[rt] + phiW[rt] - 1);
 	}
@@ -134,12 +146,32 @@ void LagrangeField2(int r, double speed, vector<double>&alpha, vector<double>&ph
 		alpha[rt] = alpha[rt] - speed*grad[rt];
 	}
 }
-void LagrangeField3(int r, double speed, vector<double>&alpha, vector<double>&phiP, vector<double>&phiW, vector<double>&grad) {
+
+void SearchGrad(int r, vector<double>&phiP, vector<double>&phiW, vector<double>&grad) {
 	for (int rt = 1; rt < r - 1; rt++)
 		grad[rt] = -1 + 1 / (phiP[rt] + phiW[rt]);
+}
+
+
+
+
+void LagrangeField3(int r, int Ns, int db, int Omega, int g,double speed, vector<vector<vector<double>>>&Gb,
+	vector<vector<vector<double>>>&Gf, vector<double>&phiP, vector<double>&L,
+	vector<double>&phiW, vector<double>&Gw, vector<double>&phiDer, vector<double>&grad,
+	vector<double>&alpha,vector<double>&LambdS, vector<double>&LambdF, vector<double>&LambdB) {
+
+	double tempMultA = 0,tempMultAb,saveBtA=0;
+	SearchGrad(r, phiP, phiW, grad);
 	vector < vector <double> > A(r, vector <double>(r, 0));
 	vector<double>d(r);
 	vector<double>a(r);
+	vector<double>b(r);
+	vector<double>Gtw(r);
+	vector<double>Gtp(r);
+	vector<double>multMatB(r,0);
+	vector<double>multMatBtran(r, 0);
+	vector < vector <double> > MultMat(r, vector <double>(r, 0));
+	vector < vector <double> > TempMult(r, vector <double>(r, 0));
 	//матрица А
 	for (int it = 0; it < r; it++) {
 		for (int jt = 0; jt < r; jt++) {
@@ -149,7 +181,7 @@ void LagrangeField3(int r, double speed, vector<double>&alpha, vector<double>&ph
 	//вектор направления
 	for (int it = 1; it < r - 1; it++) {
 		for (int jt = 1; jt < r - 1; jt++) {
-			d[it] = A[it][jt] * grad[it];
+			d[it] = -A[it][jt] * grad[it];
 		}
 	}
 	for (int it = 1; it < r - 1; it++) {
@@ -158,12 +190,61 @@ void LagrangeField3(int r, double speed, vector<double>&alpha, vector<double>&ph
 		a[it] = alpha[it] - a[it];
 	}
 	//g от alpha
-	for (int j = 1; j < r - 1; j++) {
-		Gp[j] = exp(-Up[j]);
-		Gw[j] = exp(-Uw[j]);
+	for (int rt = 1; rt < r; rt++) {
+		b[rt] = grad[rt];
+	}
+	GofAlpha(r, Gtw, Gtp, alpha);
+	initializeBackAndForward(r, Ns, g, Gb, Gf, Gtp);
+	PropogatorMatricesGb(Ns, r, db, g, Gb, Gtp, LambdS, LambdF, LambdB);
+	PropogatorMatricesGf(Ns, r, db, g, Gb, Gf, Gtp, LambdS, LambdF, LambdB);
+	densityProfile(r, Ns, db, Omega, g, Gb, Gf, Gtp, phiP, L, phiW, Gtw, phiDer);
+	SearchGrad(r, phiP, phiW, grad);
+	//новое б
+	for (int rt = 1; rt < r; rt++) {
+		b[rt] = grad[rt]-b[rt];
+	}
+	//считаем А
+
+	//a(трансп) на б
+	for (int it = 1; it < r - 1; it++)
+		tempMultAb += a[it] * b[it];
+	//а на а матрица
+	for (int it = 1; it < r - 1; it++) {
+		for (int jt = 1; jt < r - 1; jt++) {
+			MultMat[it][jt] += a[it] * a[jt]/tempMultAb;
+		}
+	}
+	//матрица А на б
+	for (int it = 1; it < r - 1; it++) {
+		for (int jt = 1; jt < r - 1; jt++) {
+			multMatB[it] += A[it][jt] * b[jt];
+		}
+	}
+	//б(трансп) на А матрицу
+	for (int it = 1; it < r - 1; it++) {
+		for (int jt = 1; jt < r - 1; jt++) {
+			multMatBtran[it] += A[jt][it] * b[jt];
+		}
+	}
+	//число в знам. 2 слог
+	for (int it = 1; it < r - 1; it++)
+		saveBtA += multMatBtran[it] * b[it];
+	//2 матрица
+	for (int it = 1; it < r - 1; it++) {
+		for (int jt = 1; jt < r - 1; jt++) {
+			TempMult[it][jt] = multMatB[it] * multMatBtran[jt]/saveBtA;
+		}
+	}
+	// обновленная А
+	for (int it = 1; it < r - 1; it++) {
+		for (int jt = 1; jt < r - 1; jt++) {
+			A[it][jt] = A[it][jt] + MultMat[it][jt] - TempMult[it][jt];
+		}
 	}
 
-
+	for (int it = 1; it < r - 1; it++) {
+		alpha[it]=alpha[it]-speed*
+	}
 
 }
 
@@ -216,7 +297,7 @@ void NumericalSolution() {
 		//расписываем для Gb
 		PropogatorMatricesGb(Ns, r, db, g, Gb, Gp, LambdS, LambdF, LambdB);
 		//расписываем для Gf 
-		PropogatorMatricesGf(Ns, r, db,g, Gb, Gf, Gp, LambdS, LambdF, LambdB);
+		PropogatorMatricesGf(Ns, r, db, g, Gb, Gf, Gp, LambdS, LambdF, LambdB);
 		//профиль плотности
 		densityProfile(r, Ns, db, Omega, g, Gb, Gf, Gp, phiP, L, phiW, Gw, phiDer);
 		//Расчитываем поле Лагранжа
@@ -224,11 +305,11 @@ void NumericalSolution() {
 			LagrangeField1(r, speed, alpha, phiP, phiW);
 		}
 		else if (choise == 2) {
-			LagrangeField2(r, speed, alpha, phiP, phiW,grad);
+			LagrangeField2(r, speed, alpha, phiP, phiW, grad);
 		}
 
 		else {
-			
+
 		}
 
 
