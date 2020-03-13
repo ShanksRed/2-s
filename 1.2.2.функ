@@ -241,9 +241,13 @@ void LagrangeField3(int r, int Ns, int db, int Omega, int g,double speed, vector
 			A[it][jt] = A[it][jt] + MultMat[it][jt] - TempMult[it][jt];
 		}
 	}
-
+	//grad
 	for (int it = 1; it < r - 1; it++) {
-		alpha[it]=alpha[it]-speed*
+		tempMultA = 0;
+		for (int jt = 1; jt < r - 1; jt++) {
+			tempMultA += grad[jt] * A[jt][it];
+		}
+		alpha[it] = alpha[it] - speed*tempMultA;
 	}
 
 }
