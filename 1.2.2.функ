@@ -155,12 +155,12 @@ void SearchGrad(int r, vector<double>&phiP, vector<double>&phiW, vector<double>&
 
 
 
-void LagrangeField3(int r, int Ns, int db, int Omega, int g,double speed, vector<vector<vector<double>>>&Gb,
+void LagrangeField3(int r, int Ns, int db, int Omega, int g, double speed, vector<vector<vector<double>>>&Gb,
 	vector<vector<vector<double>>>&Gf, vector<double>&phiP, vector<double>&L,
 	vector<double>&phiW, vector<double>&Gw, vector<double>&phiDer, vector<double>&grad,
-	vector<double>&alpha,vector<double>&LambdS, vector<double>&LambdF, vector<double>&LambdB) {
+	vector<double>&alpha, vector<double>&LambdS, vector<double>&LambdF, vector<double>&LambdB) {
 
-	double tempMultA = 0,tempMultAb,saveBtA=0;
+	double tempMultA = 0, tempMultAb=0, saveBtA = 0;
 	SearchGrad(r, phiP, phiW, grad);
 	vector < vector <double> > A(r, vector <double>(r, 0));
 	vector<double>d(r);
@@ -168,7 +168,7 @@ void LagrangeField3(int r, int Ns, int db, int Omega, int g,double speed, vector
 	vector<double>b(r);
 	vector<double>Gtw(r);
 	vector<double>Gtp(r);
-	vector<double>multMatB(r,0);
+	vector<double>multMatB(r, 0);
 	vector<double>multMatBtran(r, 0);
 	vector < vector <double> > MultMat(r, vector <double>(r, 0));
 	vector < vector <double> > TempMult(r, vector <double>(r, 0));
@@ -201,7 +201,7 @@ void LagrangeField3(int r, int Ns, int db, int Omega, int g,double speed, vector
 	SearchGrad(r, phiP, phiW, grad);
 	//новое б
 	for (int rt = 1; rt < r; rt++) {
-		b[rt] = grad[rt]-b[rt];
+		b[rt] = grad[rt] - b[rt];
 	}
 	//считаем А
 
@@ -211,7 +211,7 @@ void LagrangeField3(int r, int Ns, int db, int Omega, int g,double speed, vector
 	//а на а матрица
 	for (int it = 1; it < r - 1; it++) {
 		for (int jt = 1; jt < r - 1; jt++) {
-			MultMat[it][jt] += a[it] * a[jt]/tempMultAb;
+			MultMat[it][jt] += a[it] * a[jt] / tempMultAb;
 		}
 	}
 	//матрица А на б
@@ -232,7 +232,7 @@ void LagrangeField3(int r, int Ns, int db, int Omega, int g,double speed, vector
 	//2 матрица
 	for (int it = 1; it < r - 1; it++) {
 		for (int jt = 1; jt < r - 1; jt++) {
-			TempMult[it][jt] = multMatB[it] * multMatBtran[jt]/saveBtA;
+			TempMult[it][jt] = multMatB[it] * multMatBtran[jt] / saveBtA;
 		}
 	}
 	// обновленная А
@@ -245,7 +245,7 @@ void LagrangeField3(int r, int Ns, int db, int Omega, int g,double speed, vector
 	for (int it = 1; it < r - 1; it++) {
 		tempMultA = 0;
 		for (int jt = 1; jt < r - 1; jt++) {
-			tempMultA += grad[jt] * A[jt][it];
+			tempMultA += grad[jt] * A[it][jt];
 		}
 		alpha[it] = alpha[it] - speed*tempMultA;
 	}
@@ -328,7 +328,7 @@ void NumericalSolution() {
 			err += pow(phiP[rt] + phiW[rt] - 1, 2);
 		}
 		temp1 = temp2 = 0;
-		cout << err << " " << i << endl;
+		cout << sqrt(err) << " " << i << endl;
 		if (sqrt(err) < tolerance) {
 			//Радиус энерции
 			for (int tempr = 0; tempr < r - 1; tempr++) {
