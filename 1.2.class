@@ -1,0 +1,91 @@
+#include "stdafx.h"
+#include <iostream>
+#include <math.h>
+#include <iomanip>
+#include <fstream> 
+#include <stdio.h>
+#include <cstdlib>
+#include <vector>
+
+using namespace std;
+
+double Pi = 3.141592653589793238462643;
+float R0 = 0.5;
+
+
+
+class monomerType {
+	public:
+		friend class molSystem;
+		void BoltzmannDistribution() {
+			for (int i = 1; i < Tr - 1; i++) 
+				G[i] = exp(-U[i]);
+
+		}
+	
+	private:
+		int Tr;
+		double *G = new double[Tr];
+		double *U = new double[Tr];
+		double *Phi = new double[Tr];
+
+
+};
+
+
+
+
+class molSystem {
+	public:
+		
+		void NumberOfCells() {
+			for (int i = 0; i < r; i++) L[i] = 4.0 / 3.0 * Pi*(3 * pow((i + R0), 2) - 3 * (i + R0) + 1);
+		}
+		void ContactSurf() {
+			for (int i = 0; i < r; i++) A[i] = 4 * Pi*pow((i + R0), 2);
+		}
+		void probability() {
+			double tempLambdB, tempLambdF, tempLambdS;
+			tempLambdF = 1.0 / 6;
+			tempLambdB = 1.0 / 6;
+			tempLambdS = 1 - tempLambdB - tempLambdF;//вероятности перехода в плойской геометрии
+			for (int i = 1; i < r; i++) {
+				LambdaF[i] = tempLambdF*(A[i] / L[i]);
+				LambdaB[i] = tempLambdB*(A[i - 1] / L[i]);
+				LambdaS[i] = 1 - LambdaF[i] - LambdaB[i];
+			}
+		}
+		void getTotalPhi() {
+
+			for (int i = 0; i < r; i++) {
+				phiTotal[i] = 0;
+				for (int j = 0; j < typeQuantity; j++)
+					phiTotal[i] += instance[j].Phi[i];
+			}
+		}
+
+
+	private:
+		int r;
+		int typeQuantity;
+		double *L = new double[r];
+		double *A = new double[r];
+		double *LambdaF = new double[r];
+		double *LambdaS = new double[r];
+		double *LambdaB  = new double[r];
+		double *phiTotal = new double[r];
+		double *alpha = new double[r];
+		double *grad = new double[r];
+		monomerType *instance = new monomerType[typeQuantity];
+
+
+
+};
+
+
+int main()
+{
+	//ifstream infile("data1.txt");
+	//infile >> Ns >> g >> db >> M >> speed >> tolerance >> max_step >> choise;//нач. парамертры
+	//infile.close();
+}
